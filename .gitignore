@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv/
+venv/
+*.env*
+
+# FastAPI / logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Databases (local only)
+*.sqlite3
+*.db
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Scratch folder
+Scratches/
+Scratches and Consoles/

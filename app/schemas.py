@@ -1,0 +1,131 @@
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
+
+# ── User ────────────────────────────────────────────────────────────────
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    role: str = Field(..., pattern="^(student|instructor|admin)$")
+
+class UserBasic(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    is_active: bool
+    created_at: datetime
+    courses: List[CourseBasic] = []
+    enrollments: List["EnrollmentResponse"] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Course ──────────────────────────────────────────────────────────────
+class CourseCreate(BaseModel):
+    title: str = Field(..., min_length=3, max_length=200)
+    description: str = Field(..., min_length=10)
+    level: str = Field(..., pattern="^(beginner|intermediate|advanced)$")
+    published: bool = True
+
+class CourseBasic(BaseModel):
+    id: int
+    title: str
+    level: str
+    published: bool
+    model_config = ConfigDict(from_attributes=True)
+
+class CourseResponse(BaseModel):
+    id: int
+    title: str
+    description: str
+    level: str
+    published: bool
+    created_at: datetime
+    instructor_id: int
+    sections: List["SectionResponse"] = []
+    enrollments_count: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Section ─────────────────────────────────────────────────────────────
+class SectionCreate(BaseModel):
+    title: str = Field(..., min_length=3)
+    order_index: int = 0
+
+class SectionResponse(BaseModel):
+    id: int
+    title: str
+    order_index: int
+    course_id: int
+    lessons: List["LessonResponse"] = []
+    model_config = ConfigDict(from_attributes=True)
+
+# ── Lesson ──────────────────────────────────────────────────────────────
+class LessonCreate(BaseModel):
+    title: str = Field(..., min_length=3)
+    content_type: str
+    content: str = Field(..., alias="content_text")  # rename in schema if desired
+    order_index: int = 0
+    duration_minutes: int = 20
+    section_id: int
+
+class LessonResponse(BaseModel):
+    id: int
+    title: str
+    content_type: str
+    content: str = Field(..., alias="content_text")
+    order_index: int
+    duration_minutes: int
+    section_id: int
+    has_quiz: bool = False
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+# ── Quiz ────────────────────────────────────────────────────────────────
+class QuizCreate(BaseModel):
+    title: str
+    passing_score: int = 70
+
+class QuizResponse(BaseModel):
+    id: int
+    title: str
+    passing_score: int
+    lesson_id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# ── Enrollment ────────────────────────────────────────────────────────────────
+class EnrollmentResponse(BaseModel):
+    id: int
+    course_id: int
+    user_id: int
+    enrolled_at: datetime
+    completed_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+# ── Course Rating ────────────────────────────────────────────────────────────────
+class CourseRatingCreate(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: str = ""
+
+class CourseRatingResponse(CourseRatingCreate):
+    id: int
+    user_id: int
+    course_id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    id: Optional[str] | int = None
