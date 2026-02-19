@@ -32,8 +32,7 @@ def create_lesson(section_id: int, lesson: LessonCreate, db: Session = Depends(g
 
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A lesson with title '{lesson.title}' already exists in this section")
-
-    new_lesson = models.Lesson(**lesson.dict(exclude={"section_id"}), section_id=section_id)
+    new_lesson = models.Lesson(**lesson.model_dump(by_alias=True, exclude={"section_id"}), section_id=section_id)
     db.add(new_lesson)
     db.commit()
     db.refresh(new_lesson)
