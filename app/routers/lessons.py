@@ -2,7 +2,6 @@ from typing import List
 from fastapi import HTTPException, Depends, APIRouter, status
 from sqlalchemy.orm import Session
 from starlette.responses import Response
-
 from .. import schemas, models, oauth2
 from ..database import get_db
 
@@ -11,78 +10,36 @@ router = APIRouter(
     tags=["Lessons"]
 )
 
-# Aliases matching your previous files
 LessonResponse = schemas.LessonResponse
 LessonCreate = schemas.LessonCreate
 
-
-# -----------------------------------------------------------------------------
-# Create a new lesson inside a specific section (only course instructor)
-# -----------------------------------------------------------------------------
-@router.post(
-    "/section/{section_id}",
-    status_code=status.HTTP_201_CREATED,
-    response_model=LessonResponse
-)
-def create_lesson(
-    section_id: int,
-    lesson: LessonCreate,
-    db: Session = Depends(get_db),
-    current_user = Depends(oauth2.get_current_user)
-):
-    # Verify section exists
+# ----------------------------------------------------------------------------- CREATE LESSONS FOR A SPECIFIC SECTION
+@router.post("/section/{section_id}", status_code=status.HTTP_201_CREATED, response_model=LessonResponse)
+def create_lesson(section_id: int, lesson: LessonCreate, db: Session = Depends(get_db), current_user = Depends(oauth2.get_current_user)):
     section = db.query(models.Section).filter(models.Section.id == section_id).first()
     if not section:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Section with id {section_id} not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Section with id {section_id} not found")
 
-    # Get the course to check ownership
     course = db.query(models.Course).filter(models.Course.id == section.course_id).first()
+
     if not course:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Associated course not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associated course not found")
 
-    # Only the course owner can add lessons
     if course.instructor_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to add lessons to this section"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to add lessons to this section")
 
-    # Optional: prevent duplicate lesson titles in the same section
-    existing = (
-        db.query(models.Lesson)
-        .filter(
-            models.Lesson.section_id == section_id,
-            models.Lesson.title == lesson.title
-        )
-        .first()
-    )
+    existing = (db.query(models.Lesson).filter(models.Lesson.section_id == section_id, models.Lesson.title == lesson.title).first())
+
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"A lesson with title '{lesson.title}' already exists in this section"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"A lesson with title '{lesson.title}' already exists in this section")
 
-    new_lesson = models.Lesson(
-        **lesson.dict(exclude={"section_id"}),  # section_id comes from URL
-        section_id=section_id
-    )
-
+    new_lesson = models.Lesson(**lesson.dict(exclude={"section_id"}), section_id=section_id)
     db.add(new_lesson)
     db.commit()
     db.refresh(new_lesson)
-
     return new_lesson
 
-
-# -----------------------------------------------------------------------------
-# Get all lessons of a specific section (publicly accessible)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- GET LESSONS OF SPECIFIC SECTION
 @router.get("/section/{section_id}", response_model=List[LessonResponse])
 def get_lessons_of_section(
     section_id: int,

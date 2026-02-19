@@ -75,7 +75,7 @@ class LessonCreate(BaseModel):
     content: str = Field(..., alias="content_text")  # rename in schema if desired
     order_index: int = 0
     duration_minutes: int = 20
-    section_id: int
+    section_id: Optional[int]
 
 class LessonResponse(BaseModel):
     id: int

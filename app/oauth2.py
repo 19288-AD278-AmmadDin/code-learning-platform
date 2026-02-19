@@ -8,7 +8,7 @@ from starlette import status
 
 from . import schemas, models
 from .database import get_db
-from .config import settings
+from app.core.config import settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 SECRET_KEY = settings.secret_key

@@ -37,6 +37,15 @@ def create_section(course_id: int, section: SectionCreate, db: Session = Depends
     db.refresh(new_section)
     return new_section
 
+# ----------------------------------------------------------------------------- GET ALL SECTIONS
+@router.get("/", response_model=List[SectionResponse])
+def get_sections_of_course(db: Session = Depends(get_db)):
+    sections = (db.query(models.Section).all())
+
+    if not sections:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No sections found")
+
+    return sections
 
 # ----------------------------------------------------------------------------- GET ALL SECTIONS OF A COURSE
 @router.get("/course/{course_id}", response_model=List[SectionResponse])
