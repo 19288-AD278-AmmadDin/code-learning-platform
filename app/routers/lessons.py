@@ -60,9 +60,7 @@ def get_lessons_of_section(
     return lessons
 
 
-# -----------------------------------------------------------------------------
-# Get all lessons created by the current instructor (across their courses)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- GET ALL LESSONS CREATED BY CURRENT USER
 @router.get("/my", response_model=List[LessonResponse])
 def get_my_lessons(
     db: Session = Depends(get_db),
@@ -92,9 +90,7 @@ def get_my_lessons(
     return lessons
 
 
-# -----------------------------------------------------------------------------
-# Update a lesson (only the course owner)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- UPDATE LESSON
 @router.put("/{lesson_id}", response_model=LessonResponse)
 def update_lesson(
     lesson_id: int,
@@ -122,7 +118,7 @@ def update_lesson(
         )
 
     # Update (exclude section_id from payload)
-    update_data = lesson_update.dict(exclude_unset=True)
+    update_data = lesson_update.model_dump(by_alias=True, exclude_unset=True)
     lesson_query.update(update_data, synchronize_session=False)
     db.commit()
     db.refresh(lesson)
@@ -130,9 +126,7 @@ def update_lesson(
     return lesson
 
 
-# -----------------------------------------------------------------------------
-# Delete a lesson (only the course owner)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- DELETE LESSON
 @router.delete("/{lesson_id}")
 def delete_lesson(
     lesson_id: int,
