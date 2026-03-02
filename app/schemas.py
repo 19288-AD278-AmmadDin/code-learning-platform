@@ -102,26 +102,26 @@ class QuizResponse(BaseModel):
 
 # ── Question ─────────────────────────────────────────────────────────────
 class QuestionCreate(BaseModel):
-    text: str = Field(..., min_length=10, max_length=2000)
+    text: str = Field(..., min_length=10, max_length=2000, alias="question_text")
     question_type: str = Field("single_choice", pattern="^(single_choice|multiple_choice|true_false|short_answer)$")
+    model_config = ConfigDict(populate_by_name=True)
 
 class QuestionResponse(QuestionCreate):
     id: int
     quiz_id: int
-    created_at: datetime | None = None
     answers: List["AnswerResponse"] = []
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 # ── Answer ───────────────────────────────────────────────────────────────
 class AnswerCreate(BaseModel):
-    text: str = Field(..., min_length=1, max_length=1000)
+    text: str = Field(..., min_length=1, max_length=1000, alias="answer_text")
     is_correct: bool = False
+    model_config = ConfigDict(populate_by_name=True)
 
 class AnswerResponse(AnswerCreate):
     id: int
     question_id: int
-
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 # ── Quiz Attempt ─────────────────────────────────────────────────────────

@@ -121,7 +121,8 @@ class Question(Base):
     __tablename__ = "questions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    question_text: Mapped[str] = mapped_column(String, nullable=False)  # renamed for clarity
+    question_text: Mapped[str] = mapped_column(String, nullable=False)
+    question_type: Mapped[str] = mapped_column(String, nullable=False, server_default=text("'single_choice'"))  # single_choice | multiple_choice | true_false | short_answer
 
     quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
 
