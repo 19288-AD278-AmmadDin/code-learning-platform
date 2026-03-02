@@ -194,26 +194,16 @@ def add_answer(question_id: int, answer: schemas.AnswerCreate, db: Session = Dep
     course = _get_course_for_lesson(quiz.lesson_id, db)
     _require_course_ownership(course, current_user)
 
-    # For true_false, cap at 2 answers
-    if question.question_type == "true_false":
+    # single_choice questions can only have 1 answer total
+    if question.question_type == "single_choice":
         existing_count = db.query(models.Answer).filter(models.Answer.question_id == question_id).count()
-        if existing_count >= 2:
+        if existing_count >= 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="True/False questions can only have 2 answers"
+                detail="Single choice questions can only have 1 answer. Use multiple_choice for multiple options."
             )
 
-    # For single_choice, only one correct answer allowed
-    if question.question_type == "single_choice" and answer.is_correct:
-        existing_correct = db.query(models.Answer).filter(
-            models.Answer.question_id == question_id,
-            models.Answer.is_correct == True  # noqa: E712
-        ).first()
-        if existing_correct:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Single choice questions can only have one correct answer"
-            )
+    # multiple_choice allows multiple answers — no cap
 
     data = answer.model_dump(by_alias=False)
     new_answer = models.Answer(
@@ -250,18 +240,8 @@ def update_answer(question_id: int, answer_id: int, answer_update: schemas.Answe
     if not answer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Answer {answer_id} not found for question {question_id}")
 
-    # Enforce single_choice correct-answer uniqueness on update
-    if question.question_type == "single_choice" and answer_update.is_correct and not answer.is_correct:
-        existing_correct = db.query(models.Answer).filter(
-            models.Answer.question_id == question_id,
-            models.Answer.is_correct == True,  # noqa: E712
-            models.Answer.id != answer_id
-        ).first()
-        if existing_correct:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Single choice questions can only have one correct answer"
-            )
+    # single_choice: updating the only existing answer is fine (no additional check needed)
+    # multiple_choice: no restrictions on correct answers
 
     data = answer_update.model_dump(by_alias=False)
     answer.answer_text = data["text"]

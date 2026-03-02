@@ -103,7 +103,7 @@ class QuizResponse(BaseModel):
 # ── Question ─────────────────────────────────────────────────────────────
 class QuestionCreate(BaseModel):
     text: str = Field(..., min_length=10, max_length=2000, alias="question_text")
-    question_type: str = Field("single_choice", pattern="^(single_choice|multiple_choice|true_false|short_answer)$")
+    question_type: str = Field("single_choice", pattern="^(single_choice|multiple_choice)$")
     model_config = ConfigDict(populate_by_name=True)
 
 class QuestionResponse(QuestionCreate):
