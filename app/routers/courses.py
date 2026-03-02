@@ -5,6 +5,7 @@ from .. database import get_db
 from .. import schemas, models, oauth2
 from starlette import status
 from starlette.responses import Response
+from .. import utils
 
 router = APIRouter(
     prefix="/courses",
@@ -14,18 +15,26 @@ CourseResponse = schemas.CourseResponse
 CourseRequest = schemas.CourseCreate
 
 # ----------------------------------------------------------------------------- GET ALL COURSES
-@router.get("/", response_model=List[CourseResponse])
+@router.get("/", response_model=List[schemas.CourseResponse])
 def get_courses(db: Session = Depends(get_db)):
-    courses = db.query(models.Course).all()
+    courses = utils.get_courses_with_counts(db)
     return courses
 
-# ----------------------------------------------------------------------------- GET COURSES OF CURRENT USER
-@router.get("/my", response_model=List[CourseResponse])
-def get_courses(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
-    courses = db.query(models.Course).filter(models.Course.instructor_id == current_user.id).all()
+# ----------------------------------------------------------------------------- GET COURSES OF CURRENT USER (instructor's own courses)
+@router.get("/my", response_model=List[schemas.CourseResponse])
+def get_my_courses(db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
+    if current_user.role != "instructor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can view their own courses"
+        )
 
-    if len(courses) == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Courses found for current user")
+    courses = utils.get_courses_with_counts(db, instructor_id=current_user.id,)
+    if not courses:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No courses found for current user"
+        )
 
     return courses
 
@@ -80,5 +89,3 @@ def delete_course(id: int,  db: Session = Depends(get_db), current_user: int = D
     db.commit()
 
     return Response(status_code = status.HTTP_204_NO_CONTENT)
-
-

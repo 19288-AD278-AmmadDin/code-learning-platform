@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import List, Optional
-
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
@@ -51,7 +50,7 @@ class CourseResponse(BaseModel):
     created_at: datetime
     instructor_id: int
     sections: List["SectionResponse"] = []
-    enrollments_count: int = 0
+    enrollments_count: int
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -100,6 +99,46 @@ class QuizResponse(BaseModel):
     lesson_id: int
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+# ── Question ─────────────────────────────────────────────────────────────
+class QuestionCreate(BaseModel):
+    text: str = Field(..., min_length=10, max_length=2000)
+    question_type: str = Field("single_choice", pattern="^(single_choice|multiple_choice|true_false|short_answer)$")
+
+class QuestionResponse(QuestionCreate):
+    id: int
+    quiz_id: int
+    created_at: datetime | None = None
+    answers: List["AnswerResponse"] = []
+    model_config = ConfigDict(from_attributes=True)
+
+# ── Answer ───────────────────────────────────────────────────────────────
+class AnswerCreate(BaseModel):
+    text: str = Field(..., min_length=1, max_length=1000)
+    is_correct: bool = False
+
+class AnswerResponse(AnswerCreate):
+    id: int
+    question_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Quiz Attempt ─────────────────────────────────────────────────────────
+class QuizAttemptCreate(BaseModel):
+    pass
+
+class QuizAttemptResponse(BaseModel):
+    id: int
+    quiz_id: int
+    user_id: int
+    score: int
+    submitted_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+class QuizDetailResponse(QuizResponse):
+    questions: List[QuestionResponse] = []
+    attempts_count: int = 0
 
 # ── Enrollment ────────────────────────────────────────────────────────────────
 class EnrollmentResponse(BaseModel):
