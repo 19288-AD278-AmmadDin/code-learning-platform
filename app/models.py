@@ -68,7 +68,11 @@ class Lesson(Base, TimestampMixin):
     duration_minutes: Mapped[int] = mapped_column(server_default=text("20"), nullable=False)  # renamed for clarity
     section_id: Mapped[int] = mapped_column(ForeignKey("sections.id", ondelete="CASCADE"), nullable=False, index=True)
     section: Mapped["Section"] = relationship(back_populates="lessons")
-    quiz: Mapped["Quiz | None"] = relationship(back_populates="lesson", uselist=False)
+    quiz: Mapped["Quiz | None"] = relationship(back_populates="lesson", uselist=False, lazy="selectin")
+
+    @property
+    def has_quiz(self) -> bool:
+        return self.quiz is not None
 
 # ----------------------------------------------------------------------------- ENROLLMENT MODEL
 

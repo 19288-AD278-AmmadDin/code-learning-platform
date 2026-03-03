@@ -125,14 +125,15 @@ class AnswerResponse(AnswerCreate):
 
 
 # ── Quiz Attempt ─────────────────────────────────────────────────────────
-class QuizAttemptCreate(BaseModel):
-    pass
+class QuizAttemptSubmit(BaseModel):
+    selected_answer_ids: List[int]
 
 class QuizAttemptResponse(BaseModel):
     id: int
     quiz_id: int
     user_id: int
     score: int
+    passed: bool = False
     submitted_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,6 +160,15 @@ class CourseRatingResponse(CourseRatingCreate):
     user_id: int
     course_id: int
     created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Certificate ──────────────────────────────────────────────────────────────
+class CertificateResponse(BaseModel):
+    id: int
+    user_id: int
+    course_id: int
+    issued_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
