@@ -25,23 +25,34 @@ def _require_student(current_user: models.User) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only students can submit quiz attempts")
 
 
-def _calc_score(quiz: models.Quiz, selected_ids: set[int]) -> int:
-    """Calculate score (0–100) based on selected answer IDs vs correct answers per question."""
+def _calc_score(quiz: models.Quiz, selected_ids: set[int], text_answers: dict[int, str] | None = None) -> int:
+    """Calculate score (0–100) based on selected answer IDs and/or text answers."""
     questions = quiz.questions
     if not questions:
         return 0
+    if text_answers is None:
+        text_answers = {}
 
     correct_count = 0
     for question in questions:
         correct_ids = {a.id for a in question.answers if a.is_correct}
-        student_ids = {a_id for a_id in selected_ids if a_id in {a.id for a in question.answers}}
 
         if question.question_type == "single_choice":
-            # student must have selected exactly the one correct answer
-            if student_ids == correct_ids:
-                correct_count += 1
+            # Fill-in-the-blank: check typed text against correct answer text (case-insensitive)
+            typed = text_answers.get(question.id, "").strip().lower()
+            if typed:
+                correct_text = next(
+                    (a.answer_text.strip().lower() for a in question.answers if a.is_correct), ""
+                )
+                if typed == correct_text:
+                    correct_count += 1
+            else:
+                # Fallback: also accept answer IDs for backwards compatibility
+                student_ids = {a_id for a_id in selected_ids if a_id in {a.id for a in question.answers}}
+                if student_ids == correct_ids:
+                    correct_count += 1
         else:  # multiple_choice
-            # student must have selected ALL correct and NO wrong answers
+            student_ids = {a_id for a_id in selected_ids if a_id in {a.id for a in question.answers}}
             if student_ids == correct_ids:
                 correct_count += 1
 
@@ -78,7 +89,17 @@ def submit_attempt(
             detail=f"Answer IDs {sorted(invalid)} do not belong to this quiz"
         )
 
-    score = _calc_score(quiz, set(payload.selected_answer_ids))
+    # Validate text_answers question IDs belong to this quiz
+    if payload.text_answers:
+        quiz_question_ids = {q.id for q in quiz.questions}
+        invalid_q = set(payload.text_answers.keys()) - quiz_question_ids
+        if invalid_q:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Question IDs {sorted(invalid_q)} do not belong to this quiz"
+            )
+
+    score = _calc_score(quiz, set(payload.selected_answer_ids), payload.text_answers)
 
     attempt = models.QuizAttempt(
         user_id=current_user.id,

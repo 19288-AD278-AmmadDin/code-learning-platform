@@ -38,6 +38,21 @@ def get_my_courses(db: Session = Depends(get_db), current_user: models.User = De
 
     return courses
 
+# ----------------------------------------------------------------------------- GET SINGLE COURSE BY ID
+@router.get("/{id}", response_model=schemas.CourseResponse)
+def get_course(id: int, db: Session = Depends(get_db)):
+    course = db.query(models.Course).filter(models.Course.id == id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with id {id} not found"
+        )
+    enrollments_count = db.query(models.Enrollment).filter(
+        models.Enrollment.course_id == id
+    ).count()
+    course.enrollments_count = enrollments_count
+    return course
+
 # ----------------------------------------------------------------------------- GET CURRENT USER COURSES
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=CourseResponse)
 def create_course(course: CourseRequest, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):

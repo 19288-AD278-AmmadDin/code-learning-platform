@@ -123,10 +123,33 @@ class AnswerResponse(AnswerCreate):
     question_id: int
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
+class AnswerStudentResponse(BaseModel):
+    """Student-facing answer: hides is_correct. For single_choice (fill-in-blank) answer_text is also hidden."""
+    id: int
+    answer_text: str = ""
+    question_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Student-facing question / quiz schemas ──────────────────────────────
+class QuestionStudentResponse(BaseModel):
+    id: int
+    question_text: str = Field(..., alias="question_text")
+    question_type: str
+    quiz_id: int
+    # answers: List[AnswerStudentResponse] = []
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+class QuizDetailStudentResponse(QuizResponse):
+    """Quiz detail returned to students – no is_correct, no fill-in-blank answer text."""
+    questions: List[QuestionStudentResponse] = []
+    attempts_count: int = 0
+
 
 # ── Quiz Attempt ─────────────────────────────────────────────────────────
 class QuizAttemptSubmit(BaseModel):
-    selected_answer_ids: List[int]
+    selected_answer_ids: List[int] = []
+    text_answers: Optional[dict[int, str]] = None  # question_id -> typed text for fill-in-blank
 
 class QuizAttemptResponse(BaseModel):
     id: int
@@ -140,6 +163,7 @@ class QuizAttemptResponse(BaseModel):
 class QuizDetailResponse(QuizResponse):
     questions: List[QuestionResponse] = []
     attempts_count: int = 0
+    my_attempt: Optional["QuizAttemptResponse"] = None
 
 # ── Enrollment ────────────────────────────────────────────────────────────────
 class EnrollmentResponse(BaseModel):

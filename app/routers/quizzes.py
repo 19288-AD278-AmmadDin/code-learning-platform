@@ -1,10 +1,13 @@
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException, Depends, APIRouter, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from starlette.responses import Response
+from jose import JWTError, jwt
 
 from .. import schemas, models, oauth2
 from ..database import get_db
+from ..core.config import settings
 
 router = APIRouter(
     prefix="/quizzes",
@@ -53,6 +56,47 @@ def _require_course_ownership(course: models.Course, current_user: models.User) 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to modify this course's content")
 
 
+_optional_oauth2 = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
+
+def _get_optional_user(token: Optional[str] = Depends(_optional_oauth2), db: Session = Depends(get_db)) -> Optional[models.User]:
+    """Return current user if a valid token is provided, else None."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id = payload.get("user_id")
+        if user_id is None:
+            return None
+        return db.query(models.User).filter(models.User.id == user_id).first()
+    except JWTError:
+        return None
+
+
+def _sanitize_quiz_for_student(quiz_resp: schemas.QuizDetailResponse, user: Optional[models.User] = None, db: Optional[Session] = None) -> dict:
+    """Strip is_correct from all answers. For fill-in-blank (single_choice), also strip answer_text.
+       If user is provided, attach their existing attempt as my_attempt."""
+    data = quiz_resp.model_dump(by_alias=True)
+    for q in data.get("questions", []):
+        is_fill_blank = q.get("question_type") == "single_choice"
+        for a in q.get("answers", []):
+            a.pop("is_correct", None)
+            if is_fill_blank:
+                a["answer_text"] = ""
+
+    # Attach existing attempt for this student
+    if user and db:
+        attempt = db.query(models.QuizAttempt).filter(
+            models.QuizAttempt.quiz_id == data["id"],
+            models.QuizAttempt.user_id == user.id
+        ).first()
+        if attempt:
+            resp = schemas.QuizAttemptResponse.model_validate(attempt)
+            quiz_obj = db.query(models.Quiz).filter(models.Quiz.id == data["id"]).first()
+            resp.passed = attempt.score >= quiz_obj.passing_score if quiz_obj else False
+            data["my_attempt"] = resp.model_dump()
+
+    return data
+
 
 # ----------------------------------------------------------------------------- CREATE QUIZ FOR A LESSON
 @router.post("/lesson/{lesson_id}", status_code=status.HTTP_201_CREATED, response_model=schemas.QuizResponse)
@@ -74,8 +118,12 @@ def create_quiz(lesson_id: int, quiz: schemas.QuizCreate, db: Session = Depends(
     return new_quiz
 
 # ----------------------------------------------------------------------------- GET QUIZ FOR A LESSON
-@router.get("/lesson/{lesson_id}", response_model=schemas.QuizDetailResponse)
-def get_quiz_for_lesson(lesson_id: int, db: Session = Depends(get_db)):
+@router.get("/lesson/{lesson_id}")
+def get_quiz_for_lesson(
+    lesson_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(_get_optional_user),
+):
     quiz = db.query(models.Quiz).filter(models.Quiz.lesson_id == lesson_id).first()
     if not quiz:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No quiz found for lesson {lesson_id}")
@@ -83,16 +131,33 @@ def get_quiz_for_lesson(lesson_id: int, db: Session = Depends(get_db)):
     attempts_count = db.query(models.QuizAttempt).filter(models.QuizAttempt.quiz_id == quiz.id).count()
     response = schemas.QuizDetailResponse.model_validate(quiz)
     response.attempts_count = attempts_count
-    return response
+
+    # Instructors who own the course see full answers; everyone else gets sanitized data
+    if current_user and current_user.role == "instructor":
+        course = _get_course_for_lesson(lesson_id, db)
+        if course.instructor_id == current_user.id:
+            return response
+
+    return _sanitize_quiz_for_student(response, current_user, db)
 
 # ----------------------------------------------------------------------------- GET QUIZ DETAIL BY ID
-@router.get("/{quiz_id}", response_model=schemas.QuizDetailResponse)
-def get_quiz(quiz_id: int, db: Session = Depends(get_db)):
+@router.get("/{quiz_id}")
+def get_quiz(
+    quiz_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(_get_optional_user),
+):
     quiz = _get_quiz_or_404(quiz_id, db)
     attempts_count = db.query(models.QuizAttempt).filter(models.QuizAttempt.quiz_id == quiz_id).count()
     response = schemas.QuizDetailResponse.model_validate(quiz)
     response.attempts_count = attempts_count
-    return response
+
+    if current_user and current_user.role == "instructor":
+        course = _get_course_for_lesson(quiz.lesson_id, db)
+        if course.instructor_id == current_user.id:
+            return response
+
+    return _sanitize_quiz_for_student(response, current_user, db)
 
 # ----------------------------------------------------------------------------- UPDATE QUIZ
 @router.put("/{quiz_id}", response_model=schemas.QuizResponse)
